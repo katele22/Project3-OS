@@ -107,3 +107,10 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+uint64
+sys_getmemstats(void)
+{
+  // This will return statistics as a single number for now
+  // Later you can make it more complex
+  return student_stats();
+}

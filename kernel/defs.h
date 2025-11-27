@@ -8,6 +8,11 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+// Project 3: Student allocator
+void            student_init(void);
+void*           student_malloc(uint);
+void            student_free(void*);
+uint            student_stats(void);
 
 // bio.c
 void            binit(void);

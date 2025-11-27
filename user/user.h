@@ -14,6 +14,8 @@ int kill(int);
 int exec(const char*, char**);
 int open(const char*, int);
 int mknod(const char*, short, short);
+
+int getmemstats(void);
 int unlink(const char*);
 int fstat(int fd, struct stat*);
 int link(const char*, const char*);

@@ -41,4 +41,6 @@ entry("dup");
 entry("getpid");
 entry("sbrk");
 entry("pause");
+
+entry("getmemstats");
 entry("uptime");
