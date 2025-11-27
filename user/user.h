@@ -16,6 +16,13 @@ int open(const char*, int);
 int mknod(const char*, short, short);
 
 int getmemstats(void);
+
+int sys_student_malloc(uint size);
+int sys_student_free(uint64 ptr);
+
+void* student_malloc(uint size);
+void student_free(void* ptr);
+
 int unlink(const char*);
 int fstat(int fd, struct stat*);
 int link(const char*, const char*);

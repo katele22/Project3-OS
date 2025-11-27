@@ -90,7 +90,6 @@ kalloc(void)
 #define MAGIC_NUMBER 34          
 #define ALIGNMENT 2              
 #define FREE_LIST_SIZE 13
-#define STRATEGY 0               // 0=First-fit, 1=Best-fit, 2=Worst-fit
 
 // Block header structure
 struct student_block {
@@ -103,30 +102,41 @@ struct student_block {
 // Global allocator state
 struct {
     struct spinlock lock;
-    struct student_block *free_list;  // List of free blocks
+    struct student_block *all_blocks;  // List of all blocks
     uint total_allocated;             // Statistics
-    uint num_blocks;
+    uint num_allocated_blocks;  
+    uint num_free_blocks;
+    uint total_blocks;
 } student_mem;
 
 // Initialize the allocator
 void student_init(void) {
     initlock(&student_mem.lock, "student_mem");
-    student_mem.free_list = 0;
+    student_mem.all_blocks = 0;
     student_mem.total_allocated = 0;
-    student_mem.num_blocks = 0;
+    student_mem.num_allocated_blocks = 0;
+    student_mem.num_free_blocks = 0;
     
     printf("Student Allocator Initialized\n");
-    printf("  Student Number: %d\n", STUDENT_NUMBER);
-    printf("  Block Size: %d bytes\n", BLOCK_SIZE);
-    printf("  Strategy: %d\n", STRATEGY);
-    printf("  Magic Number: %d\n", MAGIC_NUMBER);
+
 }
 
 // Align size to required alignment
 static uint align_size(uint size) {
     return (size + ALIGNMENT - 1) & ~(ALIGNMENT - 1);
 }
-
+  // First-Fit: Find first block that's big enough
+static struct student_block* find_first_fit(uint size) {
+    struct student_block *current = student_mem.all_blocks;
+    
+    while(current != 0) {
+        if(!current->allocated && current->size >= size) {
+            return current;  // Found first fit!
+        }
+        current = current->next;
+    }
+    return 0;  // No suitable block found
+}
 // Allocate memory using your strategy
 void* student_malloc(uint size) {
     if(size == 0)
@@ -136,28 +146,40 @@ void* student_malloc(uint size) {
     size = align_size(size);
     
     acquire(&student_mem.lock);
-    
-    // Need space for header + data
-    //uint total_size = size + sizeof(struct student_block);
-    
-    // For now, use kalloc to get a page
-    // Later you'll manage this yourself
+
+    struct student_block *block = find_first_fit(size);
+    if(block) {
+        // Found a suitable block
+        block->allocated = 1;
+        student_mem.total_allocated += block->size;
+        student_mem.num_allocated_blocks++;
+        student_mem.num_free_blocks--;
+        release(&student_mem.lock);
+        return (void*)((char*)block + sizeof(struct student_block));
+    }
+
+
+    // No suitable block found, allocate a new page using kalloc
     void *mem = kalloc();
     if(mem == 0) {
         release(&student_mem.lock);
         return 0;
     }
     
-    // Set up the block header
-    struct student_block *block = (struct student_block*)mem;
-    block->size = size;
+    // Initialize block header
+    block = (struct student_block*)mem;
+    block->size = PGSIZE - sizeof(struct student_block);
     block->magic = MAGIC_NUMBER;
     block->allocated = 1;
-    block->next = 0;
+
+    //add to the front of the all_blocks list
+    block->next = student_mem.all_blocks;
+    student_mem.all_blocks = block;
     
     // Update statistics
-    student_mem.total_allocated += size;
-    student_mem.num_blocks++;
+    student_mem.total_allocated += block->size;
+    student_mem.num_allocated_blocks++ ;
+    student_mem.total_blocks++;
     
     release(&student_mem.lock);
     
@@ -167,6 +189,8 @@ void* student_malloc(uint size) {
 
 // Free allocated memory
 void student_free(void *ptr) {
+
+
     if(ptr == 0)
         return;
     
@@ -193,21 +217,54 @@ void student_free(void *ptr) {
     // Mark as free
     block->allocated = 0;
     
-    // Update statistics
-    student_mem.total_allocated -= block->size;
-    student_mem.num_blocks--;
+    if(student_mem.num_free_blocks > FREE_LIST_SIZE) {
+        printf("ERROR: Free list size exceeded! \n");
+        // Update statistics
+        student_mem.total_allocated -= block->size;
+        student_mem.num_allocated_blocks--;
+        student_mem.total_blocks--;
+        
+        // return the whole page to kalloc
+        kfree((void*)block);
+        
+        release(&student_mem.lock);
+        return;
+    }
+    else {
+        // Updaqte statistics
+        student_mem.total_allocated -= block->size;
+        student_mem.num_allocated_blocks--;
+        student_mem.num_free_blocks++;
+        //Block is now free and remains in the all_blocks list
+        release(&student_mem.lock);
+        return;
+    }
+
     
-    // For now, return the whole page to kalloc
-    // Later you'll manage a free list
-    kfree((void*)block);
-    
-    release(&student_mem.lock);
 }
 
-// Get statistics
+
+// Print allocation statistics and return number of allocated blocks
 uint student_stats(void) {
     acquire(&student_mem.lock);
-    uint blocks = student_mem.num_blocks;
+    
+    // Return number of currently allocated blocks
+    uint allocated = student_mem.num_allocated_blocks;
+    
+    // Print detailed stats
+    printf("\n=== Student Allocator Statistics ===\n");
+    printf("Student Number: %d\n", STUDENT_NUMBER);
+    printf("First-Fit Strategy\n");
+
+    printf("Allocated blocks: %d\n", student_mem.num_allocated_blocks);
+    printf("Total memory allocated: %d bytes\n", student_mem.total_allocated);
+
+    printf("Free blocks: %d\n", student_mem.num_free_blocks);
+    printf("Total blocks in list: %d \n", 
+           student_mem.total_blocks);
+
+    printf("====================================\n\n");
+    
     release(&student_mem.lock);
-    return blocks;
+    return allocated;
 }

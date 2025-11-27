@@ -43,4 +43,6 @@ entry("sbrk");
 entry("pause");
 
 entry("getmemstats");
+entry("student_malloc");
+entry("student_free");
 entry("uptime");

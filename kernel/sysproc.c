@@ -114,3 +114,18 @@ sys_getmemstats(void)
   // Later you can make it more complex
   return student_stats();
 }
+
+// System call wrapper for student_malloc
+uint64 sys_student_malloc(void) {
+  uint64 size;
+  argaddr(0, &size);
+  return (uint64)student_malloc((uint)size);
+}
+
+// System call wrapper for student_free
+uint64 sys_student_free(void) {
+  uint64 ptr;
+  argaddr(0, &ptr);
+  student_free((void*)ptr);
+  return 0;
+}
